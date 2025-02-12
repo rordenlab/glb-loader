@@ -6,7 +6,7 @@ The glb-loader is a NiiVue plugin that converts [glTF (Graphics Library Transmis
 
 ## Local Development
 
-To illustrate this library, `ds2mz3` is a node.js converter that can be run from the command line:
+To illustrate this library, `glb2mz3` is a node.js converter that can be run from the command line:
 
 ```
 git clone git@github.com:rordenlab/glb-loader.git
