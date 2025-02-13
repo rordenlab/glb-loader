@@ -56,7 +56,7 @@ const inputFile = process.argv[2]
 const outputFile = inputFile.replace(/\.glb$/, '.mz3')
 
 // Read and parse the `.gltf` file
-async function convertVoxToNifti() {
+async function convertGlbToMz3() {
   try {
     const data = await fs.readFile(inputFile)
     const startTime = performance.now()
@@ -69,4 +69,4 @@ async function convertVoxToNifti() {
   }
 }
 
-convertVoxToNifti()
+convertGlbToMz3()

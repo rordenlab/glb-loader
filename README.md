@@ -8,7 +8,7 @@ The glb-loader is a NiiVue plugin that converts [glTF (Graphics Library Transmis
 
 To illustrate this library, `glb2mz3` is a node.js converter that can be run from the command line:
 
-```
+```bash
 git clone git@github.com:rordenlab/glb-loader.git
 cd glb-loader
 npm install
@@ -19,7 +19,7 @@ node ./src/glb2mz3.js ./tests/testData/mesh.glb
 
 You can also embed this loader into a hot-reloadable NiiVue web page to evaluate integration:
 
-```
+```bash
 git clone git@github.com:rordenlab/glb-loader.git
 cd glb-loader
 npm install
@@ -28,4 +28,13 @@ npm run dev
 
 ## Sample datasets
 
-- [NIH 3D](https://3d.nih.gov/) provides thousands of GLB meashs. Note the sample meshes included in this repository are from here.
+- [NIH 3D](https://3d.nih.gov/) provides thousands of GLB meshes. Note the sample meshes included in this repository are from here.
+
+## Draco compression
+
+This library also supports glTF .glb files optimized with [Draco mesh compression](https://google.github.io/draco/). Note that the vertex reording may disrupt mesh overlays (e.g. statistical maps, gray matter thickness, curvature) and [decimation properties](https://brainder.org/2016/05/31/downsampling-decimating-a-brain-surface/). While this dramatically reduces file size, be warned that these compressed not compatible with all glTF viewers. For these reasons, most glTF files (including sample data from NIH 3D) are not compressed this way. You can compress glTF meshes to use Draco from the [command line](https://gltf-transform.dev/):
+
+```bash
+npm install --global @gltf-transform/cli
+gltf-transform optimize water-bas-color-print_NIH3D.glb water.glb --compress draco --texture-compress webp
+```

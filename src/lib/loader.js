@@ -1,8 +1,41 @@
+import { WebIO } from '@gltf-transform/core'
 import { NodeIO } from '@gltf-transform/core'
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
+import { MeshoptDecoder } from 'meshoptimizer'
+import draco3d from 'draco3dgltf'
+
+// Load Draco from an external script in the browser
+async function loadDracoDecoder() {
+  return new Promise((resolve) => {
+    const script = document.createElement('script')
+    // script.src = 'https://www.gstatic.com/draco/versioned/decoders/1.5.7/draco_decoder.js';
+    script.src = './draco_decoder.1.5.7.js'
+    script.onload = () => {
+      resolve(DracoDecoderModule())
+    }
+    document.body.appendChild(script)
+  })
+}
 
 export async function glb2mz3(arrayBuffer) {
-  const io = new NodeIO()
-  const doc = await io.readBinary(new Uint8Array(arrayBuffer)) // Load GLB file
+  let doc = []
+  const isNode = typeof window === 'undefined' && typeof document === 'undefined'
+  if (isNode) {
+    const dracoDecoder = await draco3d.createDecoderModule()
+    const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+      'draco3d.decoder': dracoDecoder,
+      'meshopt.decoder': MeshoptDecoder
+    })
+    doc = await io.readBinary(new Uint8Array(arrayBuffer)) // Load GLB file
+  } else {
+    const dracoDecoder = await loadDracoDecoder()
+    await MeshoptDecoder.ready
+    const io = new WebIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+      'draco3d.decoder': dracoDecoder,
+      'meshopt.decoder': MeshoptDecoder
+    })
+    doc = await io.readBinary(new Uint8Array(arrayBuffer)) // Load GLB file
+  }
   const root = doc.getRoot()
   const meshes = root.listMeshes()
   if (meshes.length === 0) {
@@ -53,6 +86,7 @@ export async function glb2mz3(arrayBuffer) {
       vertexOffset += positionAccessor.getCount()
     }
   }
+
   return {
     positions: new Float32Array(vertexList),
     indices: new Int32Array(indexList),

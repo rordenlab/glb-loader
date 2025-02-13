@@ -11,4 +11,11 @@ describe('GLB Conversion Tests', () => {
     expect(positions.length).toEqual(114)
     expect(indices.length).toEqual(216)
   })
+  it('should convert draco-compressed GLB to a MZ3 mesh and test properties', async () => {
+    const dsFilePath = join(__dirname, 'testData', 'draco.glb')
+    const fileBuffer = await fs.readFile(dsFilePath)
+    const { positions, indices, colors } = await glb2mz3(fileBuffer)
+    expect(positions.length).toEqual(9378)
+    expect(indices.length).toEqual(18360)
+  })
 })
