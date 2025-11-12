@@ -29,6 +29,7 @@ npm run dev
 ## Sample datasets
 
 - [NIH 3D](https://3d.nih.gov/) provides thousands of GLB meshes. Note the sample meshes included in this repository are from here.
+- [morphosource](https://www.morphosource.org/concern/media/000751555?locale=en) provides annotated GLB meshes.
 
 ## Draco compression
 

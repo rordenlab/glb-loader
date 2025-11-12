@@ -41,51 +41,178 @@ export async function glb2mz3(arrayBuffer) {
   if (meshes.length === 0) {
     throw new Error('No meshes found in GLB file.')
   }
-  let vertexList = []
-  let indexList = []
-  let colorList = []
-  let vertexOffset = 0
-  let hasColors = false
+  // ---- two-pass conversion (simple push can overflow stack) ----
+
+  let primitiveInfos = [];
+  
+  let totalVertices = 0;    // number of vertices (not floats)
+  let totalVertexFloats = 0; // number of float components (3 * totalVertices)
+  let totalIndices = 0;     // number of indices
+  let hasColors = false; // true if any primitive has color
+  let totalColorBytes = 0;  // bytes for colors (4 per vertex if hasColors)
+  
   for (const mesh of meshes) {
     for (const primitive of mesh.listPrimitives()) {
-      const positionAccessor = primitive.getAttribute('POSITION')
+      const positionAccessor = primitive.getAttribute('POSITION');
       if (!positionAccessor) {
-        throw new Error('No POSITION attribute found in primitive.')
+        throw new Error('No POSITION attribute found in primitive.');
       }
-      const indicesAccessor = primitive.getIndices()
+      const indicesAccessor = primitive.getIndices();
       if (!indicesAccessor) {
-        throw new Error('No indices found in primitive.')
+        throw new Error('No indices found in primitive.');
       }
-      // Extract vertices and append to list
-      const vertices = Array.from(positionAccessor.getArray())
-      vertexList.push(...vertices)
-      // Extract indices, adjust for offset, and append
-      const indices = Array.from(indicesAccessor.getArray()).map((index) => index + vertexOffset)
-      indexList.push(...indices)
-      // Extract colors if they exist
-      const colorAccessor = primitive.getAttribute('COLOR_0')
+      const vertexCount = positionAccessor.getCount();
+      const indexCount = indicesAccessor.getCount();
+  
+      const colorAccessor = primitive.getAttribute('COLOR_0');
+      let colorComponents = 0;
       if (colorAccessor) {
-        const colors = Array.from(colorAccessor.getArray())
-        if (colors.length / positionAccessor.getCount() === 3) {
-          for (let i = 0; i < colors.length; i += 3) {
-            colorList.push(colors[i] / 255, colors[i + 1] / 255, colors[i + 2] / 255, 255)
-          }
-        } else if (colors.length / positionAccessor.getCount() === 4) {
-          colorList.push(...colors)
+        // Determine number of components per vertex for this color accessor
+        // Prefer checking the accessor length if available, otherwise fallback to reading the array length later.
+        const colorArrayCandidate = colorAccessor.getArray ? colorAccessor.getArray() : null;
+        if (colorArrayCandidate) {
+          colorComponents = colorArrayCandidate.length / vertexCount;
+        } else {
+          // fallback guess
+          colorComponents = 4;
         }
-        hasColors = true
-      } else {
-        // Fill with default colors if we already encountered colors in another primitive
-        if (hasColors) {
-          for (let i = 0; i < positionAccessor.getCount(); i++) {
-            colorList.push(1, 1, 1) // Default white if some primitives have colors but others don’t
-          }
-        }
+        hasColors = true;
       }
-      // Update vertex offset
-      vertexOffset += positionAccessor.getCount()
+  
+      primitiveInfos.push({
+        primitive,
+        vertexCount,
+        indexCount,
+        colorComponents,
+        positionAccessor,
+        indicesAccessor,
+        colorAccessor
+      });
+  
+      totalVertices += vertexCount;
+      totalVertexFloats += vertexCount * 3; // x,y,z floats
+      totalIndices += indexCount;
+      // reserve 4 bytes per vertex if any primitive has colors (we will fill defaults where missing)
+      if (hasColors) {
+        totalColorBytes = totalVertices * 4;
+      }
     }
   }
+  
+  // If some primitives were discovered to have colors after initial increments,
+  // we need to ensure totalColorBytes accounts for all vertices.
+  // Recompute safe totalColorBytes if hasColors
+  if (hasColors) {
+    totalColorBytes = totalVertices * 4;
+  }
+  
+  // Allocate typed arrays of exact sizes
+  const vertexList = new Float32Array(totalVertexFloats);
+  const indexList = new Uint32Array(totalIndices);
+  const colorList = hasColors ? new Uint8Array(totalVertices * 4) : null;
+  
+  // Second pass: fill buffers
+  let vertexFloatOffset = 0; // position in floats
+  let indexOffset = 0;       // position in indices
+  let vertexOffset = 0;      // vertex offset used to adjust indices (in vertex counts)
+  let colorByteOffset = 0;   // byte position in colorList (if present)
+  
+  for (const info of primitiveInfos) {
+    const { primitive, vertexCount, indexCount, colorComponents,
+            positionAccessor, indicesAccessor, colorAccessor } = info;
+  
+    // copy vertex floats
+    // positionAccessor.getArray() usually returns a typed array (Float32Array)
+    const posArray = Array.from(positionAccessor.getArray()); // ensure it's a plain array or typed array; .set will accept either
+    // faster: if posArray is already a typed array, we can avoid Array.from; but using set with posArray is OK
+    // posArray length = vertexCount * 3
+    vertexList.set(posArray, vertexFloatOffset);
+    vertexFloatOffset += vertexCount * 3;
+  
+    // copy indices and add vertexOffset
+    const idxArray = Array.from(indicesAccessor.getArray()); // may be Uint16Array / Uint32Array
+    for (let i = 0; i < idxArray.length; i++) {
+      indexList[indexOffset + i] = idxArray[i] + vertexOffset;
+    }
+    indexOffset += idxArray.length;
+  
+    // colors handling:
+    if (hasColors) {
+      if (colorAccessor) {
+        const rawColors = Array.from(colorAccessor.getArray());
+        // rawColors length is vertexCount * colorComponents (3 or 4)
+        if (Math.abs(rawColors.length / vertexCount - 3) < 1e-6) {
+          // Per-vertex RGB (3 components). We will emit RGBA with A=255.
+          for (let v = 0; v < vertexCount; v++) {
+            let r = rawColors[v * 3 + 0];
+            let g = rawColors[v * 3 + 1];
+            let b = rawColors[v * 3 + 2];
+            // if values look normalized (<= 1), scale to 0..255
+            if (r <= 1 && g <= 1 && b <= 1) {
+              r = Math.round(r * 255);
+              g = Math.round(g * 255);
+              b = Math.round(b * 255);
+            } else {
+              r = Math.round(r);
+              g = Math.round(g);
+              b = Math.round(b);
+            }
+            colorList[colorByteOffset++] = r;
+            colorList[colorByteOffset++] = g;
+            colorList[colorByteOffset++] = b;
+            colorList[colorByteOffset++] = 255; // opaque alpha
+          }
+        } else if (Math.abs(rawColors.length / vertexCount - 4) < 1e-6) {
+          // Per-vertex RGBA (4 components)
+          for (let v = 0; v < vertexCount; v++) {
+            let r = rawColors[v * 4 + 0];
+            let g = rawColors[v * 4 + 1];
+            let b = rawColors[v * 4 + 2];
+            let a = rawColors[v * 4 + 3];
+            if (r <= 1 && g <= 1 && b <= 1 && a <= 1) {
+              r = Math.round(r * 255);
+              g = Math.round(g * 255);
+              b = Math.round(b * 255);
+              a = Math.round(a * 255);
+            } else {
+              r = Math.round(r);
+              g = Math.round(g);
+              b = Math.round(b);
+              a = Math.round(a);
+            }
+            colorList[colorByteOffset++] = r;
+            colorList[colorByteOffset++] = g;
+            colorList[colorByteOffset++] = b;
+            colorList[colorByteOffset++] = a;
+          }
+        } else {
+          // unexpected component count — fill defaults
+          for (let v = 0; v < vertexCount; v++) {
+            colorList[colorByteOffset++] = 255;
+            colorList[colorByteOffset++] = 255;
+            colorList[colorByteOffset++] = 255;
+            colorList[colorByteOffset++] = 255;
+          }
+        }
+      } else {
+        // primitive has no colors but some other primitives do — fill default white (255,255,255,255)
+        for (let v = 0; v < vertexCount; v++) {
+          colorList[colorByteOffset++] = 255;
+          colorList[colorByteOffset++] = 255;
+          colorList[colorByteOffset++] = 255;
+          colorList[colorByteOffset++] = 255;
+        }
+      }
+    }
+  
+    // increment vertexOffset by the number of vertices we just appended
+    vertexOffset += vertexCount;
+  }
+  console.log(hasColors)
+  // At this point vertexList, indexList, colorList are fully populated.
+  // They are typed arrays and safe to pass around without using spread operator.
+  // Example usage:
+  // const buf = createMZ3(vertexList, indexList, false, colorList);
 
   return {
     positions: new Float32Array(vertexList),
