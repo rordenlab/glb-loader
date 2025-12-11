@@ -26,6 +26,15 @@ npm install
 npm run dev
 ```
 
+## Contributing
+
+If you plan to contribute to this repository, please ensure your changes are tested and follow the project’s formatting rules:
+
+```bash
+npm run pretty
+npm run test
+```
+
 ## Sample datasets
 
 - [NIH 3D](https://3d.nih.gov/) provides thousands of GLB meshes. Note the sample meshes included in this repository are from here.
