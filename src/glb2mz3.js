@@ -153,10 +153,7 @@ async function convertGlbToMz3() {
     const data = await fs.readFile(inputFile)
     const startTime = performance.now()
     const { positions, indices, colors, scalars, colormapLabel } = await glb2mz3(data.buffer, true)
-    const hasScalars = scalars instanceof Float32Array && scalars.length > 0
-    const hasColormapLabel = colormapLabel && colormapLabel.labels && colormapLabel.labels.length > 0
-    const colorsToUse = hasScalars && hasColormapLabel ? null : colors
-    const mz3 = makeMz3(positions, indices, colorsToUse, scalars, colormapLabel)
+    const mz3 = makeMz3(positions, indices, colors, scalars, colormapLabel)
     await fs.writeFile(outputFile, Buffer.from(mz3.buffer))
     console.log(`Converted to ${outputFile} in ${Math.round(performance.now() - startTime)}ms`)
   } catch (error) {

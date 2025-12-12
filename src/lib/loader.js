@@ -238,7 +238,10 @@ export async function glb2mz3(arrayBuffer) {
     // increment vertexOffset by the number of vertices we just appended
     vertexOffset += vertexCount
   }
-
+  if (hasAnnotation && nScalars > 0) {
+    // colors are redundant, stored in annotations
+    hasColors = false
+  }
   return {
     positions: new Float32Array(vertexList),
     indices: new Int32Array(indexList),
