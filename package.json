@@ -24,6 +24,7 @@
   "scripts": {
     "cli": "node ./src/glb2mz3.js ./tests/testData/mesh.glb",
     "dev": "vite",
+    "build:demo": "vite build",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest",
