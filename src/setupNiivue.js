@@ -12,7 +12,7 @@ export async function setupNiivue(element) {
   }
   meshSelect.onchange = function () {
     const index = this.selectedIndex
-    let mesh = '/water-bas-color-print_NIH3D.glb'
+    let mesh = './water-bas-color-print_NIH3D.glb'
     if (index === 1) {
       mesh = 'https://niivue.github.io/niivue-demo-images/2UXO-ribbon-rainbow-vis_NIH3D.glb'
     }
@@ -37,7 +37,7 @@ export async function setupNiivue(element) {
   nv.useLoader(glb2mz3, 'glb', 'mz3')
   await nv.loadMeshes([
     {
-      url: '/water-bas-color-print_NIH3D.glb'
+      url: './water-bas-color-print_NIH3D.glb'
     }
   ])
 }
