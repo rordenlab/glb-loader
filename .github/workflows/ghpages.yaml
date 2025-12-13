@@ -10,6 +10,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: |
+          echo "Using npm install instead of npm ci to avoid rollup optional-deps issue"
+          rm -rf node_modules package-lock.json || true
+          npm install
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
