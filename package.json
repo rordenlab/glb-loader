@@ -27,7 +27,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest",
-    "pretty": "prettier --write \"**/*.js\""
+    "pretty": "prettier --write \"**/*.js\"",
+    "pub": "npm run build && npm publish --access public"
   },
   "devDependencies": {
     "@niivue/niivue": "^0.65.0",
